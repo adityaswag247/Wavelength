@@ -41,6 +41,8 @@ body::before {
 .bg-particles { opacity:.35 !important; }
 .hidden { display:none !important; }
 
+/* Keep legacy visibility state authoritative: hidden overlays must stay hidden. */
+
 /* shared glass language */
 .modal-card, .settings-card, .gif-picker-card, .file-viewer-card, .call-card, .wa-header, .call-bar,
 .toast, .contacts, .chat-input-bar, .wa-input-bar, .online-count, .bottom-nav, .scan-visual, .dial-visual {
@@ -50,6 +52,11 @@ body::before {
   backdrop-filter: blur(22px) saturate(140%) !important;
   -webkit-backdrop-filter: blur(22px) saturate(140%) !important;
 }
+
+
+/* Restore Home controls that the legacy mobile layer hid globally. */
+#wavelengthDarkModeToggle { display:block !important; }
+#contactsSection { display:block !important; }
 
 /* brand / landing */
 #landing { padding: 18px 18px 116px !important; gap: 18px !important; }
@@ -172,7 +179,7 @@ body::before {
 .gif-results img { border-radius:16px !important; }
 
 /* calls */
-.call-overlay { display:grid !important; place-items:center !important; }
+.call-overlay { display:grid; place-items:center; }
 .call-card { width:min(410px,calc(100% - 28px)) !important; border-radius:32px !important; padding:30px !important; }
 .call-card__avatar { border:2px solid rgba(87,230,255,.5) !important; box-shadow:0 0 35px rgba(87,230,255,.2) !important; }
 .call-card__title { font-size:23px !important; letter-spacing:-.5px !important; }

@@ -135,7 +135,8 @@
   let reconnectAttempts = 0;
   let userInitiatedClose = false;
   let currentThreadContactId = null;
-  let pendingNotificationChatId = null;
+  const initialChatFromUrl = new URLSearchParams(location.search).get('chat');
+  let pendingNotificationChatId = initialChatFromUrl || null;
   let threadOldestId = null;
   let threadHasMore = false;
   let loadingOlderThread = false;
@@ -2171,14 +2172,16 @@
       activeCallContactId = currentThreadContactId;
       activeCallContactName = threadWithLabel.textContent || 'Contact';
       activeCallContactAvatar = latestContacts.find(c => c.contactId === activeCallContactId)?.avatar || 'boy1';
+      activeCallDirection = 'outgoing';
       isCallMuted = false;
       isSpeakerOn = true;
       showActiveCall(activeCallContactName, activeCallContactAvatar, 'Calling…');
       await createPeerConnection(activeCallContactId, false);
       sendWs('call_invite', {
         toDeviceId: activeCallContactId,
-        fromName: activeCallContactName,
-        fromAvatar: getMyAvatarId()
+        // The server supplies the caller's canonical profile. Do not send the
+        // contact's local nickname here — that used to make incoming calls
+        // show the wrong person when your contact was saved under a nickname.
       });
 
       // If nobody answers within 35s, stop trying instead of showing
@@ -2248,6 +2251,10 @@
     }
     remoteAudio.srcObject = null;
     activeCallContactId = null;
+    activeCallDirection = 'outgoing';
+    activeCallContactName = 'Contact';
+    activeCallContactAvatar = 'boy1';
+    pendingIncomingCall = null;
     hideCallUI();
   }
 

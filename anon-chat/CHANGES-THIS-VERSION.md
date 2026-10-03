@@ -74,3 +74,15 @@ will correctly space for.
 Brought back the plain background from before, per your preference.
 
 ## Swipe-to-reply — confirmed working, no changes needed
+
+
+## V3 deployment/startup fixes
+- Fixed the redesigned call overlay forcing itself visible because `.call-overlay { display:grid !important; }` overrode the shared `.hidden` rule.
+- Restored the Home dark-mode toggle and legacy quick-reconnect contacts after the legacy stylesheet hid them globally.
+- Added cache-busting to the production CSS/JS URLs so the corrected V3 assets are picked up after deployment.
+- Incoming calls now use the caller's server-side profile instead of the caller's local nickname for the same contact.
+- Inbox text/file/voice delivery now marks messages as read immediately when the recipient already has that exact thread open.
+- Added contact authorization to inbox thread access, typing, text/voice sending, and call hang-up signaling.
+- Inbox previews/unread counts ignore deleted messages.
+- Notification clicks that open a fresh Wavelength tab now restore the target conversation from the `?chat=` URL instead of landing on Home.
+- Corrected the GIPHY configuration script order so a configured `window.GIPHY_API_KEY` exists before the main client script reads it.

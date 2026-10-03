@@ -453,7 +453,11 @@ wss.on('connection', (ws) => {
       case 'open_thread': {
         const myId = wsDeviceId.get(ws);
         const theirId = String(msg.contactId || '');
-        if (!myId || !theirId) break;
+        if (!myId || !theirId || myId === theirId) break;
+        if (!(await db.areContacts(myId, theirId))) {
+          send(ws, 'thread_error', { contactId: theirId, error: 'This person is not in your Inbox.' });
+          break;
+        }
         activeThreads.set(myId, theirId);
         db.markThreadRead(theirId, myId).then(async () => {
           const page = await db.getThreadPage(myId, theirId, 30);
@@ -475,7 +479,8 @@ wss.on('connection', (ws) => {
         const myId = wsDeviceId.get(ws);
         const theirId = String(msg.contactId || '');
         const beforeId = String(msg.beforeId || '');
-        if (!myId || !theirId || !beforeId) break;
+        if (!myId || !theirId || !beforeId || myId === theirId) break;
+        if (!(await db.areContacts(myId, theirId))) break;
         const page = await db.getThreadPage(myId, theirId, 30, beforeId);
         send(ws, 'older_thread_history', { contactId: theirId, ...page });
         break;
@@ -484,7 +489,8 @@ wss.on('connection', (ws) => {
       case 'inbox_typing': {
         const myId = wsDeviceId.get(ws);
         const toId = String(msg.toDeviceId || '');
-        if (!myId || !toId) break;
+        if (!myId || !toId || myId === toId) break;
+        if (!(await db.areContacts(myId, toId))) break;
         const recipientWs = deviceOnline.get(toId);
         if (recipientWs) send(recipientWs, 'inbox_typing', { fromId: myId });
         break;
@@ -521,6 +527,7 @@ wss.on('connection', (ws) => {
         const toId = String(msg.toDeviceId || '');
         const text = String(msg.text || '').slice(0, 2000).trim();
         if (!myId || !toId || !text || myId === toId) break;
+        if (!(await db.areContacts(myId, toId))) break;
         const replyTo = msg.replyTo && msg.replyTo.id ? {
           id: String(msg.replyTo.id).slice(0, 64),
           fromId: String(msg.replyTo.fromId || '').slice(0, 128),
@@ -536,10 +543,14 @@ wss.on('connection', (ws) => {
           const recipientWs = deviceOnline.get(toId);
           if (recipientWs) {
             const delivered = saved ? await db.markMessageDelivered(id) : null;
+            const recipientHasThreadOpen = activeThreads.get(toId) === myId;
+            if (recipientHasThreadOpen && saved) await db.markThreadRead(myId, toId);
             payload.delivered = true;
             payload.deliveredAt = delivered?.deliveredAt || new Date();
+            payload.read = recipientHasThreadOpen;
             send(recipientWs, 'inbox_message', payload);
-            send(ws, 'message_status', { id, status: 'delivered' });
+            send(ws, 'message_status', { id, status: recipientHasThreadOpen ? 'read' : 'delivered' });
+            if (recipientHasThreadOpen) send(ws, 'read_receipt', { byId: toId, contactId: myId });
           }
           await pushInboxNotification(toId, myId, { preview: notificationPreview('text', { text }) });
         });
@@ -598,8 +609,8 @@ wss.on('connection', (ws) => {
         if (recipientWs) {
           send(recipientWs, 'call_invite', {
             fromId: myId,
-            fromName: String(msg.fromName || 'Contact').slice(0, 40),
-            fromAvatar: String(msg.fromAvatar || 'boy1').slice(0, 8)
+            fromName: String(names.get(ws) || 'Stranger').slice(0, 40),
+            fromAvatar: String(avatars.get(ws) || 'boy1').slice(0, 8)
           });
         } else {
           // Give the caller instant feedback instead of a silent "Calling…"
@@ -629,7 +640,8 @@ wss.on('connection', (ws) => {
       case 'call_end': {
         const myId = wsDeviceId.get(ws);
         const toId = String(msg.toDeviceId || '');
-        if (!myId || !toId) break;
+        if (!myId || !toId || myId === toId) break;
+        if (!(await db.areContacts(myId, toId))) break;
         const recipientWs = deviceOnline.get(toId);
         if (recipientWs) send(recipientWs, 'call_end', { fromId: myId });
         break;
@@ -713,11 +725,15 @@ wss.on('connection', (ws) => {
           send(ws, 'inbox_message', payload);
           const recipientWs = deviceOnline.get(toId);
           if (recipientWs) {
-            if (saved) await db.markMessageDelivered(payload.id);
+            const delivered = saved ? await db.markMessageDelivered(payload.id) : null;
+            const recipientHasThreadOpen = activeThreads.get(toId) === myId;
+            if (recipientHasThreadOpen && saved) await db.markThreadRead(myId, toId);
             payload.delivered = true;
-            payload.deliveredAt = new Date();
+            payload.deliveredAt = delivered?.deliveredAt || new Date();
+            payload.read = recipientHasThreadOpen;
             send(recipientWs, 'inbox_message', payload);
-            send(ws, 'message_status', { id: payload.id, status: 'delivered' });
+            send(ws, 'message_status', { id: payload.id, status: recipientHasThreadOpen ? 'read' : 'delivered' });
+            if (recipientHasThreadOpen) send(ws, 'read_receipt', { byId: toId, contactId: myId });
           }
           await pushInboxNotification(toId, myId, { preview: notificationPreview('file', { fileName }) });
         });
@@ -733,7 +749,8 @@ wss.on('connection', (ws) => {
         // Guard rails: cap raw size (~2MB base64) and require a sane duration,
         // so one bad client can't blow through the free MongoDB storage tier.
         const MAX_AUDIO_BASE64_LENGTH = 2 * 1024 * 1024;
-        if (!myId || !toId || !audioData || duration <= 0) break;
+        if (!myId || !toId || myId === toId || !audioData || duration <= 0) break;
+        if (!(await db.areContacts(myId, toId))) break;
         if (audioData.length > MAX_AUDIO_BASE64_LENGTH) {
           send(ws, 'voice_note_rejected', { reason: 'Voice note too large (max ~90 seconds).' });
           break;
@@ -753,7 +770,17 @@ wss.on('connection', (ws) => {
           };
           send(ws, 'inbox_message', payload);
           const recipientWs = deviceOnline.get(toId);
-          if (recipientWs) { if (saved) await db.markMessageDelivered(payload.id); payload.delivered = true; send(recipientWs, 'inbox_message', payload); send(ws, 'message_status', { id: payload.id, status: 'delivered' }); }
+          if (recipientWs) {
+            const delivered = saved ? await db.markMessageDelivered(payload.id) : null;
+            const recipientHasThreadOpen = activeThreads.get(toId) === myId;
+            if (recipientHasThreadOpen && saved) await db.markThreadRead(myId, toId);
+            payload.delivered = true;
+            payload.deliveredAt = delivered?.deliveredAt || new Date();
+            payload.read = recipientHasThreadOpen;
+            send(recipientWs, 'inbox_message', payload);
+            send(ws, 'message_status', { id: payload.id, status: recipientHasThreadOpen ? 'read' : 'delivered' });
+            if (recipientHasThreadOpen) send(ws, 'read_receipt', { byId: toId, contactId: myId });
+          }
           await pushInboxNotification(toId, myId, { preview: notificationPreview('voice', {}) });
         });
         break;

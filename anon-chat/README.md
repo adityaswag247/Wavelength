@@ -81,7 +81,7 @@ The private VAPID key must stay in Render environment variables and must not be 
 - Home / Inbox / Settings bottom navigation retained.
 - Settings cards are now full-width and responsive on narrow Android screens.
 - Profile editing, avatars, account management, phone notifications, test push, theme toggle, inbox, stranger matching, contacts, chat, GIFs, voice notes, files, calls, replies, reactions, edit/delete, receipts, pagination, and presence are retained.
-- `public/avatars/` is intentionally excluded from this ZIP.
+- `public/avatars/` contains the 10 bundled profile avatars required by the inbox/profile UI.
 
 
 ## Functional back-button fix
@@ -89,7 +89,7 @@ The private VAPID key must stay in Render environment variables and must not be 
 - Settings, Inbox, contact threads, and stranger chat return to Home on phone Back.
 - Only Home shows the close-app dialog.
 - Existing tab navigation and chat controls are preserved.
-- `public/avatars/` is intentionally excluded.
+- `public/avatars/` contains the 10 bundled profile avatars required by the inbox/profile UI.
 
 
 ## Final exit-dialog fix

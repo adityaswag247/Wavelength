@@ -298,12 +298,14 @@ async function getContacts(ownerId) {
         fromId: c.contactId,
         toId: ownerId,
         read: false,
+        deleted: { $ne: true },
       });
       const lastMsg = await Message.findOne({
         $or: [
           { fromId: ownerId, toId: c.contactId },
           { fromId: c.contactId, toId: ownerId },
         ],
+        deleted: { $ne: true },
       }).sort({ createdAt: -1 }).lean();
       results.push({
         contactId: c.contactId,
